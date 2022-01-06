@@ -1,0 +1,273 @@
+---
+title: "Air Pollution: Issues, Solutions, and Trends"
+author: "Madeleine Jones"
+date: "4/18/2021"
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(ggplot2)
+library(plotly)
+library(stringr)
+library(ggspatial)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(rgeos)
+library(gganimate)
+library(grid)
+library(shiny)
+library(gifski)
+```
+
+# Issues: Air Pollution and its Consequences
+## The Fresh Air We Breathe
+|        Have you ever taken a deep breath of the crisp morning air? Or maybe rolled down a car window to enjoy the wind on your face? Chances are at some point you have appreciated the air which surrounds us- its freshness, its purity, its ability to sustain life.  But how fresh and pure is the air really, and how well does it actually sustain life? Unfortunately, the answer is neither simple nor completely positive.  
+|        Air pollution is a major problem that is causing complications on a global scale.  Aside from its detrimental effects on our planet's health, it is also one of the largest threats to human health.  Air pollution is one of the leading risk factors for fatal diseases, such as heart disease, respiratory infections, lung cancer, and stroke.   In 2017, air pollution led to the death of almost 5 million individuals, ranking as the fourth deadliest risk factor overall. 
+
+```{r warning=FALSE, message=FALSE}
+deathsByFactor<- read.csv("Deaths by Factor.csv", check.names = FALSE)
+deathsByFactor<- deathsByFactor %>% filter(Year == 2017) %>% filter(Entity == "World") %>% select(-c(Entity, Code, Year)) 
+deathsByFactor <- data.frame(r1=names(deathsByFactor), t(deathsByFactor)) 
+deathsByFactor<- deathsByFactor[order(-deathsByFactor$t.deathsByFactor.),] %>% na.omit() %>% filter(r1 != "Deaths - Discontinued breastfeeding - Sex: Both - Age: All Ages (Number)") %>% filter(r1 != "Deaths - High total cholesterol - Sex: Both - Age: All Ages (Number)")
+
+deathsByFactorPlot<- ggplot(deathsByFactor, aes(x=reorder(r1, t.deathsByFactor.), y = t.deathsByFactor.)) + geom_col(fill="darkslategray4") + coord_flip()  + scale_x_discrete(name="Risk Factor", labels = c("Diet high in red meat", "Zinc deficiency", "Iron deficiency", "Non-exclusive breastfeeding", "Diet low in calcium", "Child stunting", "Vitamin-A deficiency", "Low bone mineral density", "Diet low in legumes", "Drug use", "No access to handwashing facility", "Poor sanitation", "Diet low in fiber", "Unsafe sex",  "Child wasting",  "Low birth weight", "Secondhand smoke", "Unsafe water source", "Low physical activity", "Diet low in seafood omega-3 fatty acids", "Diet low in vegetables", "Indoor air pollution", "Diet low in nuts and seeds", "Diet low in fruits", "Alcohol use", "Diet low in whole grains", "Diet high in sodium", "Outdoor air pollution", "Obesity", "Air pollution (outdoor & indoor)", "High blood sugar", "Smoking", "High blood pressure")) + theme_bw() + theme(axis.text.y = element_text(size=8), panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) + scale_y_continuous(name="Number of Deaths in Millions", labels = c("0", "2.5", "5", "7.5", "10")) + ggtitle("Number of Deaths by Risk Factor in 2017") 
+deathsByFactorPlot
+```
+
+## Indoor and Outdoor Forms
+|        Air pollution as a whole is a large health concern.  However, its subcomponents, outdoor and indoor pollution, also rank in the top deadliest risk factors. In 2017, outdoor air pollution took the lives of roughly 3 million individuals and indoor air pollution took the lives of roughly 2 million.  In a broader scope, both outdoor and indoor pollution have caused millions of deaths over the past few decades.  Since 1990, both forms of pollution have remained a prevalent health issue, and while indoor pollution death tolls appear to be decreasing, outdoor pollution death tolls have been on the rise. 
+|        Before further analysis, it is important to note the distinction between indoor and outdoor pollution.  To begin, indoor pollution, also known as household pollution, refers to matter and compounds found in the air due to common household processes such as cooking and heating.  The use of solid fuels, such as crop wastes, animal wastes, firewood, charcoal, and coal, when cooking and heating releases harmful pollutants into the air, thus leading to indoor air pollution.  Alternatively, outdoor pollution refers to particulate matter, abbreviated as PM, and ozone found in the air.  Particulate matter comes from combustion emissions emitted directly from a source or from chemical reactions between sulfur dioxide and nitrogen oxide emissions in the atmosphere  Its two most common forms are PM2.5 and PM10, which are particles measuring 2.5 and 10 micrometers in diameter, respectively.  Furthermore, ozone is a gaseous molecule composed of 3 oxygen atoms commonly found in the stratosphere's "ozone layer". While ozone in the stratosphere provides protection from ultraviolet sun rays, ozone in the troposphere can be problematic.
+|        All forms of indoor and outdoor pollution cause harm to the human body.  At only a few micrometers in diameter each, these small substances are able to enter the body's airways and interfere with the respiratory system.  Common risks associated with air pollution range from chest pain and throat irritation to asthma, stroke, and lung cancer. As a whole, these pollutants are one of the most prominent risk factors for disease and should be  regulated to protect both environment and human health.  
+ 
+```{r warning=FALSE, message=FALSE}
+inoutdoor<- read.csv("deaths by indoor and outdoor.csv")
+inoutdoor<- inoutdoor %>% filter(Entity == "World") %>% select(-c(Entity,Code)) 
+
+indoor<- inoutdoor %>% rename("Pollution" = "Household.air.pollution") %>% mutate(Type = rep("Indoor", 7)) %>% select(-c(`Outdoor.air.pollution`))
+outdoor<- inoutdoor %>% rename("Pollution" = "Outdoor.air.pollution") %>% mutate(Type = rep("Outdoor", 7)) %>% select(-c(`Household.air.pollution`))
+both<- rbind(indoor, outdoor)
+
+ggplot(both, aes(x = Year, y = Pollution, fill = Type)) + geom_area(position = 'stack') + theme_bw() + scale_y_continuous(name="Number of Deaths in Millions", labels = c("0", "2", "4", "6", "8")) + ggtitle("Number of Deaths from Indoor and Outdoor Pollution") 
+```
+
+## Pollution Rates and their Correlations
+|        Each form of air pollution, and their respective concentrations and death tolls, vary by country.  While some countries have higher outdoor pollution rates due to industrial emissions, other countries have higher indoor pollution due to limited access to clean fuels and technologies.  The distribution of death rates due to pollution across countries addresses the interesting trends of spread and correlation between the different pollution forms.  
+|        To begin, indoor pollution has the largest spread of death rates ranging from less than 1 death per 100,000 people to a maximum of 218 deaths per 100,000 people in Papua New Guinea. While this range is large, though, most countries cluster between 0 to 50 deaths per 100,000 each year.  On the other hand, ozone pollution has the smallest spread of death rates from almost 0 deaths per 100,000 people to around 27 deaths per 100,000 people in North Korea. (Note that the ozone scale in the graphic below is square root). Finally, particulate matter pollution has a moderate spread with a slightly larger minimum of around 7 deaths per 100,000 people in Finland to 110 death deaths per 100,000 in Egypt.  
+|        Furthermore, in terms of correlation, there is an extremely strong positive linear correlation between ozone and particulate matter pollution, indicating that as ozone death rates increase, PM death rates increase as well in a constant manner.  This can be expected because ozone and particulate matter comprise outdoor air pollution and have an interactive relationship.  Nitric and carbon oxides, two reactants of PM pollution, are precursors to ozone, thus suggesting that as nitric and carbon oxide levels increase, the achievable levels of ozone also increase.  Alternatively, it does not appear that indoor pollution has a particularly strong correlation with either form of outdoor air pollution.   
+
+```{r warning=FALSE, message=FALSE}
+allthree<- read.csv("indoor and outdoor trends.csv")
+allthreeclean<- allthree %>% rename("Air Pollution" = `Deaths...Air.pollution...Sex..Both...Age..Age.standardized..Rate.`) %>% rename("Household Pollution" = Deaths...Household.air.pollution.from.solid.fuels...Sex..Both...Age..Age.standardized..Rate.) %>% rename("PM Pollution" = Deaths...Ambient.particulate.matter.pollution...Sex..Both...Age..Age.standardized..Rate.) %>% rename("Ozone Pollution" = Deaths...Ambient.ozone.pollution...Sex..Both...Age..Age.standardized..Rate.) %>% filter(Year == 2017) %>% mutate(`Sqrt Ozone Pollution` = sqrt(`Ozone Pollution`))
+
+scatter3d <- plot_ly(allthreeclean, x = ~`PM Pollution`, y = ~`Sqrt Ozone Pollution`, z = ~`Household Pollution`, text = ~`Entity`) %>% layout(title = "Death Rate for 100,000 People by Pollution Type", scene = list(
+      xaxis = list(title = "PM Pollution"),
+      yaxis = list(title = "Ozone Pollution (Sqrt)"),
+      zaxis = list(title = "Household Pollution")
+    ))
+scatter3d 
+```
+
+## Indoor Pollution: A Specific Issue
+|        Air pollution is a generally well-defined issue of widespread awareness.  However, the perception of air pollution is often limited to visible outdoor pollution, such as smog and haze over a city.  Consequently, due to its unperceivable nature, indoor pollution can be overlooked despite its detrimental effects on society. 
+|        One specific concern of indoor pollution is its harm to children. Individuals under the age of five are extremely vulnerable to respiratory complications because human airways and lungs are still developing and maturing at this age.  Therefore, when young children are constantly exposed to greater levels of solid fuel pollution from cooking and heating, they are at a greater risk of respiratory disease and, ultimately, death.  The link between indoor pollution and childhood death rates stems directly from the source, limited access to clean fuels and technologies.  Therefore, there is a positive correlation between populations without access to clean resources and their respective number of childhood deaths.  For example, in 2016, in countries such as the South Sudan and Central African Republic, more than 99% of their  populations did not have access to clean fuels and technologies.  Subsequently, these countries had extremely high childhood deaths numbers at more than 500 each.  Overall, as a population increases in its barriers to clean resources, it increases in childhood death tolls as well.  
+
+```{r warning=FALSE, message=FALSE}
+child<- read.csv("child mortality indoor respiratory issues.csv")
+childclean<- child%>% filter(Year == 2016) %>% na.omit() %>% rename("Deaths"=Deaths...Lower.respiratory.infections...Sex..Both...Age..Under.5..Rate.) %>% rename("Percentage of Population"= Access.to.clean.fuels.and.technologies.for.cooking.....of.population.) %>% mutate("Population Without Access (%)" = 100-`Percentage of Population`)
+
+qfit <- lm(`Deaths` ~ poly(`Population Without Access (%)`,2), data = childclean)
+
+childclean %>% plot_ly(showlegend = FALSE) %>% add_lines(x = ~`Population Without Access (%)`, y = fitted(qfit)) %>%
+  add_trace(x=~`Population Without Access (%)`, y=~`Deaths`, text= ~`Entity`) %>% layout(title = 'Child Deaths from Respiratory Issues vs. Clean Fuel and Tech Access in 2016')
+
+interest<- which(childclean$"Population Without Access (%)" > 95)
+interest<- as.character(childclean[interest,1])
+```
+
+# Solutions: Concrete Responses to the Pollution Health Crisis
+## Solutions to Indoor Pollution
+|        The greatest contributor to indoor pollution is limited access to clean fuels and technologies.  In countries where access to clean resources is limited, solid fuels are used for cooking and heating and release chemical pollutants into the air.  Therefore, the most effective and reliable method to reduce indoor air pollution is to increase access to clean fuels and technologies.  Over the past few years, many programs have been put in place across the globe to increase this access. According to the International Energy Agency, liquefied petroleum gas (LPG) programs and clean air policies have been implemented in regions around Asia and Africa, giving over 450 million more people access to clean fuels since 2010.  
+|        While efforts to decrease indoor pollution are commendable and effective, there is still much work to be done.  Over the past 20 years, many countries have seen an increase in clean resource accessibility.  However, this increase has been quite slow as many countries continue to have clean resource accessibility for less than 5% of their populations.  Furthermore, as stated by the International Energy Agency, in some sub-Saharan countries, population growth is outpacing increased access to clean fuels.  This suggests that increased numerical access does not necessarily imply increased proportional access. 
+|        Altogether, increasing access to clean fuels and technologies must continue to be a global priority.  However, the speed and efficiency in which access is increased must also be taken into consideration.  Policies with the largest outreach and fastest implementations are the most advantageous, and these policies should be primarily focused within developing, low-income countries that currently have the greatest barriers to clean resources.  
+
+```{r warning=FALSE, message=FALSE}
+extracountries <- c("Chad", "Gambia", "Guinea", "Guinea-Bissau", "Liberia", "Madagascar", "Mali", "Uganda")
+interestcountries <- interest[!interest %in% extracountries]
+
+access<- read.csv("Clean fuels access.csv")
+accessclean<- access %>% na.omit() %>% rename("Percentage of Population with Access" = "Access.to.clean.fuels.and.technologies.for.cooking.....of.population.")  %>%  
+  filter(Entity %in% interestcountries) %>% rename("Country" = "Entity")
+
+accessplot<- ggplot(accessclean, mapping=aes(x=Year, y=`Percentage of Population with Access`)) + 
+  geom_line(aes(color = Country)) + 
+  ggtitle("Population Percentages with Access to Clean Fuels and Tech") + theme_bw() + transition_reveal(Year)
+
+animate(accessplot, end_pause = 15)
+```
+
+## Solutions to Outdoor Pollution
+|        Outdoor pollution is primarily caused by industry and vehicle emissions.  Therefore, efforts to reduce outdoor pollution commonly focus on the reduction of pollutants from these sources.  In terms of industry, the Center for Climate and Energy Solutions cites a plethora of measures to reduce harmful emissions including switching to clean fuel alternatives, combining heat and power processes, using renewable energy, and recycling used materials.  Furthermore, for industrial processes without a low or clean emission alternative, a method called "carbon capture and return" can be used to collect emissions and reuse them in a productive manner.
+|        On the other hand, many new vehicle technologies are being developed in order to reduce emissions.  One of the most promising and popular technologies in development is the electric vehicle.  Electric vehicles function on battery power rather than fuel, thus eliminating the release of tailpipe emissions.  The US Department of Energy notes, however, that batteries are powered by external sources of energy, such as power plants, which may produce emissions themselves. Therefore, the plants must exercise caution with emissions, for example, by focusing on the industrial practices references previously.  The use of electric vehicles in conjunction with clean power plants can achieve a major reduction in air pollution from automobiles.  
+|        The impact of reduced emission efforts can be evaluated using emission trends in the United Kingdom and the United States.  Both of these nations have been industrialized for many decades and thus, have experienced increased emissions as well as efforts to reduce them.  In order to evaluate progress, emissions levels can be indexed to a previous year's levels for comparison. In the graphic below, each year's emission levels are compared to the levels in 1970; therefore, an index of 100 signifies emission levels equal to those of 1970.  Some of the most prevalent emissions being targeted for reduction are ammonia, nitrogen oxides, PM10, PM2.5, and sulphur dioxide.  Both the UK and US appear to be on a similar trajectory in decreased emissions, aside from a brief spike in the United States' PM2.5 levels around 1999.  There has been a significant decrease in nitrogen oxide, PM10, PM2.5, and sulphur dioxide emissions, and ongoing efforts should further these trends in the coming years.  Unfortunately, ammonia has not seen a major decrease in either country.  According to the Department of Health, roughly 80% of industrial ammonia pollution comes from the agricultural industry.  Therefore, the United Kingdom and United States should increase emphasis and research on clean agricultural practices in order to see ammonia pollution levels decrease. 
+
+```{r warning=FALSE, message=FALSE}
+emmisions<- read.csv("US emissions.csv")
+
+UK<- emmisions%>% filter(Entity == "United Kingdom") %>% rename("PM10" = PM....Index.) %>% rename("PM2.5" = PM.....Index.) %>% rename("Nitrogen Oxides" = Nitrogen.oxides..Index.) %>% rename("Ammonia" = Ammonia..Index.) %>% rename("Sulphur Dioxide" = Sulphur.dioxide..Index.) %>% na.omit()
+
+UKpm10<- UK%>% select(Year, PM10) %>% rename(Index = PM10) %>% mutate(Type = "PM10")
+UKpm2.5<-UK%>% select(Year, PM2.5) %>% rename(Index = PM2.5) %>% mutate(Type = "PM2.5")
+UKNit<- UK%>% select(Year, `Nitrogen Oxides`) %>% rename(Index = `Nitrogen Oxides`) %>% mutate(Type = "Nitrogen Oxides")
+UKAm<- UK%>% select(Year, Ammonia) %>% rename(Index = Ammonia) %>% mutate(Type = "Ammonia")
+UKSul<- UK%>% select(Year, `Sulphur Dioxide`) %>% rename(Index = `Sulphur Dioxide`) %>% mutate(Type = "Sulphur Dioxide")
+UKclean<- rbind(UKpm10, UKpm2.5, UKNit, UKAm, UKSul)
+
+UKplot<- ggplot(UKclean, aes(x=Year, y = Index)) + 
+  geom_line(aes(color=`Type`)) + theme_bw()  + ggtitle("Emissions in the United Kingdom") + ylab("Index Relative to 1970 Levels") + transition_reveal(Year)
+
+animate(UKplot, end_pause = 15)
+```
+
+```{r warning=FALSE, message=FALSE}
+US<- emmisions%>% filter(Entity == "United States") %>% rename("PM10" = PM....Index.) %>% rename("PM2.5" = PM.....Index.) %>% rename("Nitrogen Oxides" = Nitrogen.oxides..Index.) %>% rename("Ammonia" = Ammonia..Index.) %>% rename("Sulphur Dioxide" = Sulphur.dioxide..Index.) %>% na.omit()
+
+USpm10<- US%>% select(Year, PM10) %>% rename(Index = PM10) %>% mutate(Type = "PM10")
+USpm2.5<-US%>% select(Year, PM2.5) %>% rename(Index = PM2.5) %>% mutate(Type = "PM2.5")
+USNit<- US%>% select(Year, `Nitrogen Oxides`) %>% rename(Index = `Nitrogen Oxides`) %>% mutate(Type = "Nitrogen Oxides")
+USAm<- US%>% select(Year, Ammonia) %>% rename(Index = Ammonia) %>% mutate(Type = "Ammonia")
+USSul<- US%>% select(Year, `Sulphur Dioxide`) %>% rename(Index = `Sulphur Dioxide`) %>% mutate(Type = "Sulphur Dioxide")
+USclean<- rbind(USpm10, USpm2.5, USNit, USAm, USSul)
+
+USplot<- ggplot(USclean, aes(x=Year, y = Index)) + 
+  geom_line(aes(color=`Type`)) + theme_bw()  + ggtitle("Emissions in the United States") + scale_y_continuous(name="Index Relative to 1970 Levels", breaks = c(0, 20,40,60,80,100,120)) + transition_reveal(Year) 
+
+animate(USplot, end_pause = 15)
+```
+
+### Barrier to Reduced Emissions
+|        While there are many proposed solutions to decreasing emissions and overall outdoor pollution, there are also a plethora of barriers surrounding these efforts.  One hypothesized barrier is known as the Environmental Kuznets Curve (EKC), a phenomenon initially studied by Simon Kuznets and further developed in an environmental context by Princeton researchers Grossman and Krueger.  The EKC proposes that during early stages of economic growth and industrialization, a country's environmental quality will decrease, but after a certain level of income per capita is achieved, economic growth will lead to environmental improvements.  This phenomenon suggests that environmental quality is an inverted U-shaped function of GDP per capita.  In the graphic below, this inverted U-shaped relationship is also present between GDP per capita and death rates from pollution for a sample of countries across the globe.  While parts of this theory are contested and increased communication between "developed" and "developing" countries may decrease the severity of this trend, the theory does appear to hold true in regard to economic development and pollution. 
+|        The EKC is a barrier to reduced outdoor pollution levels in that as more countries develop and industrialize, emission levels will rise before they can be permanently subdued.  Fortunately, as briefly stated previously, increased communication between countries that have already undergone industrialization and those that are currently industrializing can decrease the severity of this trend.  Countries can exchange clean technologies and practices to ensure that the process of industrialization is as harmless to air quality as possible.  
+
+```{r warning=FALSE, message=FALSE}
+gdp<- read.csv("outdoor pollution:gdp.csv")
+
+gdpclean <- gdp %>% na.omit() %>% rename(`Death Rate`=Death.rate...Outdoor.air.pollution..age.standardized...IHME.) %>% rename(`GDP Per Capita`= GDP.per.capita..PPP..constant.2011.international...) %>% rename(`Total Population`= Total.population..Gapminder..HYDE...UN.) %>% 
+  complete(Entity, Year) %>%
+  group_by(Entity) %>%
+  mutate(`Death Rate`=zoo::na.approx(`Death Rate`,na.rm=FALSE)) %>%
+  mutate(`GDP Per Capita`=zoo::na.approx(`GDP Per Capita`,na.rm=FALSE)) %>%
+  mutate(`Total Population`=zoo::na.approx(`Total Population`,na.rm=FALSE)) %>%
+  fill(`Death Rate`, `GDP Per Capita`, `Total Population`, .direction="down") %>%
+  fill(`Death Rate`, `GDP Per Capita`, `Total Population`, .direction="up") %>%
+  ungroup(Entity) %>% na.omit %>% filter(`Total Population` >= 1000000) 
+
+focus<- c("China", "India", "Nepal", "Sudan", "Pakistan", "Belarus", "Mongolia", "Uruguay", "Romania", "Latvia", "United States", "Canada", "Australia", "Guinea", "Niger", "Democratic Republic of Congo", "Ghana", "Gambia", "Sierra Leone", "Lesotho", "Uzbekistan", "Turkmenistan")
+
+gdpplot <- gdpclean %>% filter(`Entity`%in% focus)  %>% filter(`Year` > 2000) %>% plot_ly(y = ~`Death Rate`, x = ~`GDP Per Capita`, size = ~`Total Population`, marker = list(sizeref=.10),  
+    frame = ~`Year`, text = ~`Entity`, hoverinfo = "text",type = 'scatter', mode = 'markers', showlegend = FALSE) %>% layout(title= "GDP Per Capita Compared to Death Rate from Air Pollution", xaxis=list(title="GDP Per Capita",
+                                 type = "log"), 
+                      yaxis=list(title='Death Rate')) %>% animation_opts(redraw=FALSE)
+
+gdpplot
+```
+
+# Trends: Issues and Solutions at Play over the Years
+## Decreasing Global Pollution Levels
+|        Air pollution heightens a variety of health issues and takes numerous lives each year.  In response, many countries and organizations have taken steps to decrease indoor and outdoor forms of air pollution.  In general, over the past three decades, the rate of deaths caused by air pollution has decreased significantly, from over 110 deaths per 100,000 people each year to less than 70.  The majority of this decrease is due to falling indoor pollution death rates, which have dropped from 60 to 20 deaths per 100,000 people per year.  On the other hand, death rates for both forms of outdoor air pollution, ozone and particulate matter, have not greatly decreased.  Ozone pollution death rates have remained relatively low at around 10 deaths per 100,000 people in 1990 and 6 deaths in 2017.  Particulate matter death rates have decreased slightly from 44 deaths per 100,000 people to 39 deaths in 2017.  Overall, in just three decades, air pollution death rates have been cut roughly in half.  With sustained implementation of clean resource and reduced emission initiatives, death rates are likely to continue dropping as air pollution declines globally.  
+
+```{r warning=FALSE, message=FALSE}
+trends<- read.csv("indoor and outdoor trends.csv")
+trendsclean<- trends %>% rename("Air Pollution" = Deaths...Air.pollution...Sex..Both...Age..Age.standardized..Rate.) %>% rename("Household Pollution" = Deaths...Household.air.pollution.from.solid.fuels...Sex..Both...Age..Age.standardized..Rate.) %>% rename("PM Pollution" = Deaths...Ambient.particulate.matter.pollution...Sex..Both...Age..Age.standardized..Rate.) %>% rename("Ozone Pollution" = Deaths...Ambient.ozone.pollution...Sex..Both...Age..Age.standardized..Rate.) %>% na.omit() %>% filter(Entity == "World")
+
+byyear<- trendsclean %>% group_by(trendsclean$`Year`) 
+
+airpol<- byyear %>% summarise(n = sum(`Air Pollution`)) %>% rename("Rate" = n) %>% rename("Year" = `trendsclean$Year`) %>% mutate("Type" = "Air Pollution")
+housepol<- byyear %>% summarise(n = sum(`Household Pollution`)) %>% rename("Rate" = n) %>% rename("Year" = `trendsclean$Year`) %>% mutate("Type" = "Household Pollution")
+pmpol<- byyear %>% summarise(n = sum(`PM Pollution`)) %>% rename("Rate" = n) %>% rename("Year" = `trendsclean$Year`) %>% mutate("Type" = "PM Pollution")
+ozpol<- byyear %>% summarise(n = sum(`Ozone Pollution`)) %>% rename("Rate" = n) %>% rename("Year" = `trendsclean$Year`)%>% mutate("Type" = "Ozone Pollution")
+all<- rbind(airpol,housepol,pmpol,ozpol) 
+
+alltrends<- ggplot(all, aes(x=Year, y = Rate)) + 
+  geom_line(aes(color=`Type`)) + theme_bw()  + ggtitle("Global Air Pollution Trends") + scale_y_continuous(name="Deaths per 100,000 Population", breaks = c(0, 20,40,60,80,100,120))
+
+alltrends
+```
+
+## Trends by Country
+|        Global air pollution death rates have been in steady decline since 1990.  While this decline stems from a global effort to reduce air pollutants, it is important to recognize the different trends and contributions of individual countries.  To begin, in the Americas, Europe, and Australia, death tolls have remained low from the year 1990 to 2016 at less than 100 deaths per year.  Alternatively, countries in the sub-Saharan and Asian regions have seen extreme improvement in their respective death toll numbers.  Three decades ago, many of these countries had more than 250 deaths each year due to air pollution.  Now, they each have annual death tolls of less than 150 people, cumulatively cutting deaths each year by thousands.  The world as a whole is moving towards less deaths from air pollution each year, signifying a healthier human population and a healthier environment and planet.  
+
+```{r}
+final<- read.csv("Total death from air pollution map.csv")
+finalclean<- final %>% rename("Deaths" = "Deaths...Air.pollution...Sex..Both...Age..Age.standardized..Rate.") %>% select(c(Year, Entity, `Deaths`)) %>% na.omit() %>% filter(Entity != "Upper middle income") %>% filter(Entity != "World") %>% rename("name" = "Entity") %>% mutate(name = name %>% str_replace("Democratic Republic of Congo","Dem. Rep. Congo")) %>% mutate(name = name %>% str_replace("Central African Republic","Central African Rep.")) %>% mutate(name = name %>% str_replace("South Sudan","S. Sudan")) %>% mutate(name = name %>% str_replace("Central African Republic","Central African Rep.")) %>% mutate(name = name %>% str_replace("Czechia","Czech Rep.")) 
+
+world <- ne_countries(scale = "medium", returnclass = "sf") %>% select(c("name"))
+
+combined <- merge(world, finalclean, by= "name")
+
+ui <- fluidPage(
+    titlePanel("Deaths from Air Pollution By Year"),
+    
+    sidebarLayout(
+        sidebarPanel(
+            sliderInput(inputId="year", label="Year:",
+                        min=1990, max=2016, value=1990)),
+        mainPanel(plotOutput(outputId="distPlot"))
+    )
+)
+
+
+server <- function(input, output) {
+  x <- combined
+  output$distPlot <- renderPlot({ 
+      year <- x %>% filter(`Year` == input$year)
+      ggplot(year) + theme_bw()+ geom_sf(aes(fill = `Deaths`)) + scale_fill_gradient(limits = c(3,325))
+    })
+}
+
+shinyApp(ui=ui, server=server, options=list(height=500))
+```
+
+# Sources 
+https://ourworldindata.org/air-pollution 
+
+https://ourworldindata.org/indoor-air-pollution 
+
+https://ourworldindata.org/outdoor-air-pollution
+
+https://www.epa.gov/sites/production/files/documents/gooduphigh.pdf 
+
+https://stackoverflow.com/questions/34447741/need-to-convert-columns-to-rows-in-r 
+
+https://bookdown.org/yihui/rmarkdown-cookbook/fold-show.html 
+
+https://www.r-spatial.org/r/2018/10/25/ggplot2-sf.html 
+
+https://cotap.org/reduce-carbon-emissions/#driving 
+
+https://www.c2es.org/content/regulating-industrial-sector-carbon-emissions/#:~:text=There%20are%20many%20ways%20to,use%20and%20recycling%20of%20materials. 
+
+https://www.iea.org/reports/sdg7-data-and-projections/access-to-clean-cooking 
+
+https://afdc.energy.gov/vehicles/electric_emissions.html 
+
+https://www.health.ny.gov/environmental/emergency/chemical_terrorism/ammonia_tech.htm#:~:text=About%2080%25%20of%20the%20ammonia,pesticides%2C%20dyes%20and%20other%20chemicals. 
+
+https://www.sciencedirect.com/science/article/pii/S0305750X04000798#BIB28 
+
+https://stackoverflow.com/questions/53092216/any-way-to-pause-at-specific-frames-time-points-with-transition-reveal-in-gganim/53093389
+
+https://www.sciencedirect.com/science/article/pii/S2405844017319813 
+
+https://ww2.arb.ca.gov/resources/inhalable-particulate-matter-and-health#:~:text=Emissions%20from%20combustion%20of%20gasoline,a%20significant%20proportion%20of%20PM10.
+
